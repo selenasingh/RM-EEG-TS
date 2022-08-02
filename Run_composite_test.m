@@ -23,7 +23,7 @@ repeat_AM_words = true;
 
 % Inter-trial stimulus type:
 iti_stim = 'word';
-test_run = false;
+test_run = true;
 
 % Resting state:
 resting_state = false;
