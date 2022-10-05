@@ -31,7 +31,7 @@ num_questions_asked = 0;
 
 %% Display Instructions for AM task:
 if test_run
-    AM_task_instruction = 'You will be shown a series of words on the screen.\n\n Some of these words are those that elicit the memories you described, \n\n while some others are not linked to memories. \n\n Upon seeing a word that elicits a memory, \n\n imagine the memory in as much detail as possible. \n';
+    AM_task_instruction = 'You will be shown a series of words on the screen.\n\n Some of these words are those that elicit the memories you described, \n\n Upon seeing a word that elicits a memory, \n\n imagine the memory in as much detail as possible. \n';
     DrawFormattedText(wPtr, AM_task_instruction, 'center', 'center', white);
     Screen('Flip', wPtr);
     WaitSecs(instructions_time); Screen('Flip', wPtr);

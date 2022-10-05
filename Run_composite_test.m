@@ -1,9 +1,13 @@
+% TODO : try cleaning this initialization piece up
 %% Test Setup:
-clear all; clc; addpath(genpath('Z:\expts\AttentionBCI\Experiment_code'));
+sca;
+close all;
+clear;
+clc; addpath(genpath('Z:\expts\AttentionBCI\Experiment_code'));
 
-subject_name = 'GH';
+subject_name = 'Neutral'; 
 exp_time = datestr(now,30);  % Date and Time of the experiment
-
+ 
 % Timing Settings:
 Trial_duration = 2;             %Inter-trial interval (time between end and start of trials)
 prefix_time = 2;     %How long the fixation appears before the cue
@@ -11,19 +15,20 @@ interBlock_time = 5;         % Time between two blocks (duration of time salienc
 instructions_time = 5;      % Duration for which the instructions show up before the onset of a task
 
 % Experimental settings:
-nBlocks = 10;           % Number of Blocks
+nBlocks = 1 ;           % Number of Blocks
 nTrials = 10;            % Number of trials
-nClass = 2;             % Number of task classes
+nClass = 3;             % Number of task classes
 
 % WM n-back Settings:
-nBack_num = 2; % Recollection task - or 2 back task
+nBack_num = 1; % Recollection task - or 2 back task
 num_questions = 5;
 num_question_options = 4;
 repeat_AM_words = true;
+repeat_CR_words = true;
 
 % Inter-trial stimulus type:
 iti_stim = 'word';
-test_run = true;
+test_run = true; % TODO: instructions set to only appear in test situation. Ask Saurabh why.
 
 % Resting state:
 resting_state = false;
@@ -75,23 +80,21 @@ if ~test_run
 end
 %% Display Setup
 %instruction Text
-text = sprintf('Two different tasks will be presented. \n\n The specific instructions for each task will be presented shortly. \n\n Between each task, you will be presented with one of two images \n which will indicate the type of task you will be performing next.\n');
+text = sprintf('Three different tasks will be presented. \n\n The specific instructions for each task will be presented shortly. \n\n Between each task, you will be presented with one of three images \n which will indicate the type of task you will be performing next.\n');
 
 % Setup screen
 Screen('Preference', 'SkipSyncTests', 1);  
 
 % Counts the number of monitors, and uses highest number monitor
 mons=size(get(0, 'MonitorPositions'));
-screenNum = mons(1)-1;sca
-
-% Define the monitor to used (0 = default one )
-% screenNum = 2;
+screenNum = mons(1)-1;
+sca
 
 % Open a windows in default monitor. Resolution and size by default
-[wPtr,wRect] = Screen('OpenWindow',screenNum);
+[wPtr,wRect] = Screen('OpenWindow',screenNum); 
 
 % Hide mouse
-HideCursor;
+% HideCursor;
 
 % Define the center of the screen
 [x0, y0] = RectCenter(wRect);
@@ -103,7 +106,6 @@ white  = WhiteIndex(wPtr);
 % text paramaters
 Screen('TextFont',wPtr, 'Courier New');
 Screen('TextSize',wPtr, 28);
-%Screen('TextStyle', wPtr, 1+2);
 
 % Fixation parameters
 fixSize  = 25; % In pixels
@@ -126,14 +128,15 @@ Screen('Preference', 'SkipSyncTests', 1);
 
 %% Experiment Setup:
 
-% Read in the Autobiographical memory (AM) words
-from the xlsx file:
+% Read in the Autobiographical memory (AM) and Cued Rumination (CR) words:
 AM_fileName = ['Episodic_Memories_' subject_name '.xlsx'];
-%AM_fileName = ['Episodic_Memories.xlsx'];
+CR_fileName = ['Ruminations_' subject_name '.xlsx'];
 [AM_data_table] = readtable(AM_fileName);
+[CR_data_table] = readtable(CR_fileName);
 
-% Extract the AM words from AM_data_table:
-AM_words = {}; AM_word_rating_cell = []; AM_memory_number = [];
+% Extract the AM and CR words from data_table:
+AM_words =  {}; AM_word_rating_cell = []; AM_memory_number = [];
+CR_words = {}; CR_word_rating_cell = []; CR_memory_number = [];
 i = 1;
 while i <= size(AM_data_table,1) && ~isempty(cell2mat(AM_data_table{i,3}))
     AM_words = [AM_words strsplit(cell2mat(AM_data_table{i,3}),',')];
@@ -143,11 +146,16 @@ while i <= size(AM_data_table,1) && ~isempty(cell2mat(AM_data_table{i,3}))
     i = i+1;
 end
 num_AM_words = size(AM_words,2);
-% AM_word_rating = [];
-% for j = 1:num_AM_words
-%     AM_word_rating = [AM_word_rating str2num(AM_word_rating_cell{j})];    
-% end
-% clear AM_word_rating_cell
+
+j = 1;
+while j <= size(CR_data_table,1) && ~isempty(cell2mat(CR_data_table{j,3}))
+    CR_words = [CR_words strsplit(cell2mat(CR_data_table{j,3}),',')];
+    CR_word_rating_cell = [CR_word_rating_cell strsplit(cell2mat(CR_data_table{j,4}),',')];
+    num_words_added = length(strsplit(cell2mat(CR_data_table{j,3}),','));
+    CR_memory_number = [CR_memory_number repmat(j,[1,num_words_added])];
+    j = j+1;
+end
+num_CR_words = size(CR_words,2);
 
 % Read in the other words from the English corpus:
 corpus_fileName = 'Word_corpus.xlsx';
@@ -155,8 +163,8 @@ corpus_fileName = 'Word_corpus.xlsx';
 corpus_words = corpus_data_table{:,1}';
 num_corpus_words = size(corpus_words,2);
 
-% Create randomized list of either WM or AM task blocks (0-AM, 1-WM):
-Exp_blocks = [zeros(1,nBlocks),ones(1,nBlocks)];
+% Create randomized list of either WM, AM, or CR task blocks (0-AM, 1-WM, 2-CR):
+Exp_blocks = [zeros(1,nBlocks),ones(1,nBlocks), 2.*ones(1,nBlocks)];
 Exp_blocks = Exp_blocks(randperm(length(Exp_blocks)));
 
 %% Resting State Acquisition:
@@ -169,11 +177,10 @@ if resting_state
     % Get EEG data (& online processing): 
     if ~test_run
         [resting_buffer_INDEX,resting_EEG_MARKERS,resting_EEG,prevSample] = get_EEG_data(cfg,blocksize_resting_time,1,chanindx,[],[],[]);
-                
+         
+        % TODO : ask Saurabh what's going on with the pseudocode bit here
         %pseudocode
-        
-        
-        
+       
         save(strcat('resting_EEG_',subject_name),'cfg','resting_EEG','resting_EEG_MARKERS','resting_buffer_INDEX');        
     end    
 end
@@ -195,7 +202,7 @@ for block = 1:length(Exp_blocks)
     INDEX = [];
     
     tic;
-    if ~Exp_blocks(block)   % It is an AM trial (Class 2)
+    if Exp_blocks(block) == 1   % It is an AM trial (Class 2)
         
         switch iti_stim
             case 'word'
@@ -208,23 +215,26 @@ for block = 1:length(Exp_blocks)
                 
                 DrawFormattedText(wPtr,'Autobiographical Memory', 'center', 'center', white);
                 Screen('Flip', wPtr);
-                WaitSecs(floor(interBlock_time/2)); Screen('Flip', wPtr); class = 1; % interblock time (Class 1)
+                WaitSecs(floor(interBlock_time/2)); Screen('Flip', wPtr); 
+                class = 1; % interblock time (Class 1)
                 
             case 'symbol'                
                 % Draw white fixation cross
                 Screen('drawLine', wPtr, [0,0,0], x0-fixSize, y0, x0+fixSize, y0, fixThick);
                 Screen('drawLine', wPtr, [0,0,0], x0, y0-fixSize, x0, y0+fixSize, fixThick);
                 Screen('Flip', wPtr);
-                WaitSecs(interBlock_time); Screen('Flip', wPtr); class = 1; % interblock time (Class 1)                
-        end
+                WaitSecs(interBlock_time); Screen('Flip', wPtr); 
+                class = 1; % interblock time (Class 1)                
+        end %end switch
         
         % Populate the class_MARK vector for interblock segment:
-        if ~test_run [class_MARK,class_MARK_idx] = get_class_Markers(cfg,blocksize_interBlock_time,prevSample,class, block, class_MARK, class_MARK_idx); end
+        if ~test_run [class_MARK,class_MARK_idx] = get_class_Markers(cfg,blocksize_interBlock_time,prevSample,class, block, class_MARK, class_MARK_idx); 
+        end %end if
         
         class = 2;
         Run_AM
         
-    else     % It is a WM trial (Class 3)
+    elseif Exp_blocks(block) == 0     % It is a WM trial (Class 3)
         
         switch iti_stim
             case 'word'
@@ -237,26 +247,68 @@ for block = 1:length(Exp_blocks)
                 
                 DrawFormattedText(wPtr, 'Word Memory', 'center', 'center', white);
                 Screen('Flip', wPtr);
-                WaitSecs(floor(interBlock_time/2)); Screen('Flip', wPtr); class = 1; % interblock time (Class 1)
+                WaitSecs(floor(interBlock_time/2)); Screen('Flip', wPtr); 
+                class = 1; % interblock time (Class 1)
                 
             case 'symbol'                
                 % Draw white circle
                 Screen('FillOval', wPtr,[0,0,0]);
                 Screen('Flip', wPtr);
-                WaitSecs(interBlock_time); Screen('Flip', wPtr); class = 1; % interblock time (Class 1)
-        end
+                WaitSecs(interBlock_time); Screen('Flip', wPtr); 
+                
+                class = 1; % interblock time (Class 1)
+        end %end switch
         
         % Populate the class_MARK vector for interblock segment:
-        if ~test_run [class_MARK,class_MARK_idx] = get_class_Markers(cfg,blocksize_interBlock_time,prevSample,class, block, class_MARK, class_MARK_idx); end
+        if ~test_run 
+            [class_MARK,class_MARK_idx] = get_class_Markers(cfg,blocksize_interBlock_time,prevSample,class, block, class_MARK, class_MARK_idx); 
+        end %end if
         
         class = 3;
         Run_WM
-    end
+
+    elseif Exp_blocks(block) == 2 % cued rumination trial 
+        switch iti_stim
+            case 'word'
+                 % Draw white fixation cross
+                Screen('drawLine', wPtr, [0,0,0], x0-fixSize, y0, x0+fixSize, y0, fixThick);
+                Screen('drawLine', wPtr, [0,0,0], x0, y0-fixSize, x0, y0+fixSize, fixThick);
+                Screen('Flip', wPtr);
+                WaitSecs(floor(interBlock_time/2));
+                
+                DrawFormattedText(wPtr,'Rumination', 'center', 'center', white);
+                Screen('Flip', wPtr);
+                WaitSecs(floor(interBlock_time/2)); Screen('Flip', wPtr); 
+                class = 1; % interblock time (Class 1)
+                
+            case 'symbol'                
+                % Draw white fixation cross
+                Screen('drawLine', wPtr, [0,0,0], x0-fixSize, y0, x0+fixSize, y0, fixThick);
+                Screen('drawLine', wPtr, [0,0,0], x0, y0-fixSize, x0, y0+fixSize, fixThick);
+                Screen('Flip', wPtr);
+                WaitSecs(interBlock_time); Screen('Flip', wPtr); 
+                class = 1; % interblock time (Class 1)                
+       
+        end %end switch
+        % Populate the class_MARK vector for interblock segment:
+        if ~test_run 
+            [class_MARK,class_MARK_idx] = get_class_Markers(cfg,blocksize_interBlock_time,prevSample,class, block, class_MARK, class_MARK_idx); 
+        end %end if
+        
+        class = 4;
+        Run_CR
+
+        
+    end %end outer if (if, elseif, else)
     
     % Collect EEG from the duration of this block:
-    block_runtime = toc;
-    blocksize = round(block_runtime*hdr.Fs);
-    if ~test_run [buffer_INDEX{block},EEG_MARKERS{block},EEG{block},prevSample] = get_EEG_data(cfg,blocksize,prevSample,chanindx,INDEX,EVENT,DATA); end
+    
+    if ~test_run 
+        block_runtime = toc;
+        blocksize = round(block_runtime*hdr.Fs);
+        [buffer_INDEX{block},EEG_MARKERS{block},EEG{block},prevSample] = get_EEG_data(cfg,blocksize,prevSample,chanindx,INDEX,EVENT,DATA); 
+    end %end if
+
     question_RESP{block} = question_responses;
     class_MARKERS{block} = class_MARK;
     class_MARKERS_idx{block} = class_MARK_idx;
@@ -265,9 +317,10 @@ for block = 1:length(Exp_blocks)
     if ~test_run
         files = dir(strcat('composite_task_',subject_name,'_block_',num2str(block),'*.mat'));
         save([strcat('composite_task_',subject_name,'_block_',num2str(block)),num2str(length(files)+1)],'cfg','EEG','class_MARKERS','class_MARKERS_idx','EEG_MARKERS','buffer_INDEX','question_RESP','Exp_blocks','block')
-    end
+    end %end if
     
-end
+end %end for loop for experiment block
+
 sca;
 
 % Save the entire dataset:
