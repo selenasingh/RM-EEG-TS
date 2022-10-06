@@ -1,40 +1,94 @@
 % TODO : try cleaning this initialization piece up
-%% Test Setup:
-sca;
-close all;
-clear;
-clc; addpath(genpath('Z:\expts\AttentionBCI\Experiment_code'));
+sca; %close psychtoolbox windows
+close all; 
+clear; %clear workspace
+clc; 
 
-subject_name = 'Neutral'; 
-exp_time = datestr(now,30);  % Date and Time of the experiment
- 
-% Timing Settings:
-Trial_duration = 2;             %Inter-trial interval (time between end and start of trials)
-prefix_time = 2;     %How long the fixation appears before the cue
-interBlock_time = 5;         % Time between two blocks (duration of time saliency information is shown)
-instructions_time = 5;      % Duration for which the instructions show up before the onset of a task
-
-% Experimental settings:
-nBlocks = 1 ;           % Number of Blocks
-nTrials = 10;            % Number of trials
-nClass = 3;             % Number of task classes
-
-% WM n-back Settings:
-nBack_num = 1; % Recollection task - or 2 back task
-num_questions = 5;
-num_question_options = 4;
-repeat_AM_words = true;
-repeat_CR_words = true;
-
-% Inter-trial stimulus type:
-iti_stim = 'word';
 test_run = true; % TODO: instructions set to only appear in test situation. Ask Saurabh why.
+exp_time = datestr(now,30);  % Date and Time of the experiment
 
-% Resting state:
-resting_state = false;
-resting_time = 5*60;
+resting_state = false; % Collecting resting state data?
+resting_time = 5*60; % Duration of resting state
 
-%% Fieldtrip setup
+%%%%%%%%%%%%% Path and Data Saving Set-up %%%%%%%%%%%%%%%
+%proj_path = fullfile('E:', 'selena', 'RM-EEG'); %for computer at htrl
+proj_path = fullfile('/Users','selenasingh', 'Desktop', 'PhD - current work', 'EEG study', 'RM-EEG-TS', 'RM-EEG-TS'); %local 
+pt = readtable(fullfile(proj_path, 'participants.xlsx'));
+pid = pt.id(end); %extract participant ID
+session = pt.session(end); %pre or post intervention, or single, session. 
+subject_name = join([string(pid) '_' char(session)], '');
+
+%%%%%%%%%%%%% Extracting Ruminations, AMs, and WM words %%%%%%%%%%%%
+[CR_data_table] = readtable(fullfile(proj_path, 'memories', join(['Ruminations_' subject_name '.xlsx'],'')));
+[AM_data_table] = readtable(fullfile(proj_path, 'memories', join(['Episodic_Memories_' subject_name '.xlsx'],'')));
+[corpus_data_table] = readtable(fullfile(proj_path, 'memories', 'Word_corpus.xlsx'));
+
+%initialization
+AM_words =  {}; AM_word_rating_cell = []; AM_memory_number = [];
+CR_words = {}; CR_word_rating_cell = []; CR_memory_number = [];
+
+%taking from table, organizing for experiment loop
+%AUTOBIOGRAPHICAL MEMORIES
+i = 1;
+while i <= size(AM_data_table,1) && ~isempty(cell2mat(AM_data_table{i,3}))
+    AM_words = [AM_words strsplit(cell2mat(AM_data_table{i,3}),',')];
+    AM_word_rating_cell = [AM_word_rating_cell strsplit(cell2mat(AM_data_table{i,4}),',')];
+    num_words_added = length(strsplit(cell2mat(AM_data_table{i,3}),','));
+    AM_memory_number = [AM_memory_number repmat(i,[1,num_words_added])];
+    i = i+1;
+end
+num_AM_words = size(AM_words,2);
+
+%CUED RUMINATION
+j = 1;
+while j <= size(CR_data_table,1) && ~isempty(cell2mat(CR_data_table{j,3}))
+    CR_words = [CR_words strsplit(cell2mat(CR_data_table{j,3}),',')];
+    CR_word_rating_cell = [CR_word_rating_cell strsplit(cell2mat(CR_data_table{j,4}),',')];
+    num_words_added = length(strsplit(cell2mat(CR_data_table{j,3}),','));
+    CR_memory_number = [CR_memory_number repmat(j,[1,num_words_added])];
+    j = j+1;
+end
+num_CR_words = size(CR_words,2);
+
+%WORKING MEMORY WORDS
+corpus_words = corpus_data_table{:,1}';
+num_corpus_words = size(corpus_words,2);
+
+% Create randomized list of either WM, AM, or CR task blocks (0-AM, 1-WM, 2-CR):
+Exp_blocks = [zeros(1,nBlocks),ones(1,nBlocks), 2.*ones(1,nBlocks)];
+Exp_blocks = Exp_blocks(randperm(length(Exp_blocks)));
+
+%%%%%%%%%%%%%%%%%%%% STROOP TASK %%%%%%%%%%%%%%%%%%%%%%%%
+Run_stroop
+
+%%%%%%%%%%%%%%%%%%%% SETTING UP EEG DATA SAVING %%%%%%%%%%%%%%%%%
+if ~test_run
+
+    % data saving, current participant's path %
+    data_path = fullfile(proj_path, 'data', sprintf('%d', pid), 'eeg'); % change so aligns with saurabh's requirements
+    
+    %get access to fieldtrip 
+    addpath(genpath('E:\Saurabh_files\Research_code\Toolboxes\FieldTrip'));
+    
+    %start recording EEG
+    biosemi2ftPath = fullfile('E:', 'Saurabh_files', 'Research_code', 'Toolboxes', 'Fieldtrip', 'realtime', 'bin', 'win32');
+    
+    %turning biosemi on, start saving data
+    system('start powershell')
+    cmd = {'cd %s; .\\biosemi2ft biosemi_config.txt %s -', biosemi2ftPath, data_path};
+    clipboard('copy', sprintf(cmd{:}));
+    fprintf('\n\nCopy and paste the following command into the powershell window that just opened:\n');
+    fprintf('(Alternatively, just paste using ctrl + V because the command has already been copied to your clipboard \n\n');
+    fprintf(cmd{:})
+    fprintf('\n\nThen press S to enable saving\n')
+    input('When you have done this, press enter to continue', 's');
+end
+
+
+%%%%%%%%%%%%%%%%%%% Experiment Initialization %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+experiment_params % load experiment params 
+
+%%%%%%%%%%%%%%%%%%% Fieldtrip setup %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 if ~test_run
     cfg                = [];
     cfg.blocksize      = 1;                            % seconds
@@ -78,7 +132,8 @@ if ~test_run
     end
     count = 0;
 end
-%% Display Setup
+
+%%%%%%%%%%%%%%%%% Display Setup, using PsychToolBox %%%%%%%%%%%%%%%%%%%%%
 %instruction Text
 text = sprintf('Three different tasks will be presented. \n\n The specific instructions for each task will be presented shortly. \n\n Between each task, you will be presented with one of three images \n which will indicate the type of task you will be performing next.\n');
 
@@ -126,48 +181,10 @@ Screen('Flip', wPtr);
 
 Screen('Preference', 'SkipSyncTests', 1);
 
-%% Experiment Setup:
+%%%%%%%%%%%%%%%%%%%%% Experiment Setup %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% Read in the Autobiographical memory (AM) and Cued Rumination (CR) words:
-AM_fileName = ['Episodic_Memories_' subject_name '.xlsx'];
-CR_fileName = ['Ruminations_' subject_name '.xlsx'];
-[AM_data_table] = readtable(AM_fileName);
-[CR_data_table] = readtable(CR_fileName);
+%%%%%%%%%%% ----- Resting State Acquisition:
 
-% Extract the AM and CR words from data_table:
-AM_words =  {}; AM_word_rating_cell = []; AM_memory_number = [];
-CR_words = {}; CR_word_rating_cell = []; CR_memory_number = [];
-i = 1;
-while i <= size(AM_data_table,1) && ~isempty(cell2mat(AM_data_table{i,3}))
-    AM_words = [AM_words strsplit(cell2mat(AM_data_table{i,3}),',')];
-    AM_word_rating_cell = [AM_word_rating_cell strsplit(cell2mat(AM_data_table{i,4}),',')];
-    num_words_added = length(strsplit(cell2mat(AM_data_table{i,3}),','));
-    AM_memory_number = [AM_memory_number repmat(i,[1,num_words_added])];
-    i = i+1;
-end
-num_AM_words = size(AM_words,2);
-
-j = 1;
-while j <= size(CR_data_table,1) && ~isempty(cell2mat(CR_data_table{j,3}))
-    CR_words = [CR_words strsplit(cell2mat(CR_data_table{j,3}),',')];
-    CR_word_rating_cell = [CR_word_rating_cell strsplit(cell2mat(CR_data_table{j,4}),',')];
-    num_words_added = length(strsplit(cell2mat(CR_data_table{j,3}),','));
-    CR_memory_number = [CR_memory_number repmat(j,[1,num_words_added])];
-    j = j+1;
-end
-num_CR_words = size(CR_words,2);
-
-% Read in the other words from the English corpus:
-corpus_fileName = 'Word_corpus.xlsx';
-[corpus_data_table] = readtable(corpus_fileName);
-corpus_words = corpus_data_table{:,1}';
-num_corpus_words = size(corpus_words,2);
-
-% Create randomized list of either WM, AM, or CR task blocks (0-AM, 1-WM, 2-CR):
-Exp_blocks = [zeros(1,nBlocks),ones(1,nBlocks), 2.*ones(1,nBlocks)];
-Exp_blocks = Exp_blocks(randperm(length(Exp_blocks)));
-
-%% Resting State Acquisition:
 if resting_state
     Resting_task_instruction = 'Please sit back, relax, close your eyes and \n \n do not think of anything in particular \n';
     DrawFormattedText(wPtr, Resting_task_instruction, 'center', 'center', white);
@@ -185,7 +202,9 @@ if resting_state
     end    
 end
 
-%% Experiment Loop:
+%%%%%%%%%%% ----- Experiment loop:
+
+%initialization 
 EEG = cell(1,length(Exp_blocks));
 class_MARKERS = cell(1,length(Exp_blocks));
 class_MARKERS_idx = cell(1,length(Exp_blocks));
@@ -323,7 +342,7 @@ end %end for loop for experiment block
 
 sca;
 
-% Save the entire dataset:
+%%%%%%%%%%%%%%%%% Save the entire dataset: %%%%%%%%%%%%%%%%%%%%%
 if ~test_run
     save(strcat('composite_task_',subject_name,'_full_dataset'),'cfg','EEG','class_MARKERS','class_MARKERS_idx','EEG_MARKERS','buffer_INDEX','question_RESP','Exp_blocks','block')
     save(['End_Workspace_' subject_name])
