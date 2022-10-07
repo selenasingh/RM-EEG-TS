@@ -1,3 +1,8 @@
+%%%%% Autobiographical Memory Trials %%%%%
+%%%---File history:
+%%% original: Saurabh Shaw, 2020
+
+%%%%%%%------------------------------
 % Picking keywords from the same memory for this block:
 num_unique_memories = max(AM_memory_number); rand_vect = randperm(num_unique_memories);
 current_mem = rand_vect(1); % Pick a memory for this block

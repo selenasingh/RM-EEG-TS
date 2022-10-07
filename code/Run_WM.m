@@ -1,3 +1,9 @@
+%%%%% Working Memory Trials: n-back task %%%%%
+%%%---File history:
+%%% original: Saurabh Shaw, 2020
+
+%%%%%%%------------------------------
+
 % Prepare trials for the current block:
 rand_corpus_words = corpus_words(randperm(num_corpus_words));
 WM_trial_word_list = rand_corpus_words(1:nTrials);

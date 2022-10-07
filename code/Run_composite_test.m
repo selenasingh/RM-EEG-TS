@@ -1,14 +1,23 @@
-% TODO : try cleaning this initialization piece up
+%%%%% EEG TASK-SWITCHING PARADIGM %%%%%
+%%%---File history:
+%%% original: Saurabh Shaw, 2020
+%%% current: Selena Singh, 2022
+
+%%% Changes made (SS): 
+%%% - Re-organize so initialization occurs in sep. file
+%%% - Add Stroop task, Cued Rumination Trials
+%%% - Time gaps for experimenters
+%%% - File organization for participant data 
+%%% - Biosemi data saving directly from MATLAB
+
+%%%%%%%------------------------------
 sca; %close psychtoolbox windows
 close all; 
 clear; %clear workspace
 clc; 
 
 test_run = true; % TODO: instructions set to only appear in test situation. Ask Saurabh why.
-exp_time = datestr(now,30);  % Date and Time of the experiment
-
 resting_state = false; % Collecting resting state data?
-resting_time = 5*60; % Duration of resting state
 
 %%%%%%%%%%%%% Path and Data Saving Set-up %%%%%%%%%%%%%%%
 %proj_path = fullfile('E:', 'selena', 'RM-EEG'); %for computer at htrl
@@ -17,6 +26,9 @@ pt = readtable(fullfile(proj_path, 'participants.xlsx'));
 pid = pt.id(end); %extract participant ID
 session = pt.session(end); %pre or post intervention, or single, session. 
 subject_name = join([string(pid) '_' char(session)], '');
+
+%%%%%%%%%%%%%%%%%%% Experiment Initialization %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+experiment_params % load experiment params 
 
 %%%%%%%%%%%%% Extracting Ruminations, AMs, and WM words %%%%%%%%%%%%
 [CR_data_table] = readtable(fullfile(proj_path, 'memories', join(['Ruminations_' subject_name '.xlsx'],'')));
@@ -64,16 +76,16 @@ Run_stroop
 %%%%%%%%%%%%%%%%%%%% SETTING UP EEG DATA SAVING %%%%%%%%%%%%%%%%%
 if ~test_run
 
-    % data saving, current participant's path %
+    % data saving, current participant's path 
     data_path = fullfile(proj_path, 'data', sprintf('%d', pid), 'eeg'); % change so aligns with saurabh's requirements
     
-    %get access to fieldtrip 
+    % get access to fieldtrip 
     addpath(genpath('E:\Saurabh_files\Research_code\Toolboxes\FieldTrip'));
     
-    %start recording EEG
+    % start recording EEG
     biosemi2ftPath = fullfile('E:', 'Saurabh_files', 'Research_code', 'Toolboxes', 'Fieldtrip', 'realtime', 'bin', 'win32');
     
-    %turning biosemi on, start saving data
+    % turning biosemi on, start saving data
     system('start powershell')
     cmd = {'cd %s; .\\biosemi2ft biosemi_config.txt %s -', biosemi2ftPath, data_path};
     clipboard('copy', sprintf(cmd{:}));
@@ -83,10 +95,6 @@ if ~test_run
     fprintf('\n\nThen press S to enable saving\n')
     input('When you have done this, press enter to continue', 's');
 end
-
-
-%%%%%%%%%%%%%%%%%%% Experiment Initialization %%%%%%%%%%%%%%%%%%%%%%%%%%%%
-experiment_params % load experiment params 
 
 %%%%%%%%%%%%%%%%%%% Fieldtrip setup %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 if ~test_run
@@ -352,4 +360,13 @@ end
 % save(strcat('pretrain_',subject_name),'EEG','class_MARKERS','EEG_MARKERS','start_INDEX','scan');
 % files = dir('testsaurabh*.mat');
 % save(['testsaurabh',num2str(length(files)+1)])
+
+%%%%%%%%%%%%%%%% Concluding experiment %%%%%%%%%%%%%%%%%%%%
+if ~test_run
+    rmpath(genpath('E:\Saurabh_files\Research_code\Toolboxes\FieldTrip'));
+    fprintf('\n\nExperiment complete! \nRemember to stop recording the EEG data by first pressing D, then Esc\n')
+    fprintf('Remember, also, to add the participant to the payment log\n\n')
+else
+    fprintf('Test run complete!')
+end 
 

@@ -1,3 +1,9 @@
+%%%%% Cued Rumination Trials %%%%%
+%%%---File history:
+%%% original: Selena Singh, 2022
+%%% very similar to Run_AM.m
+
+%%%%%%%------------------------------
 % TODO : Clean up, add comments/doc strings, improve readability
 % Picking keywords from the same memory for this block:
 num_unique_memories = max(CR_memory_number); 
