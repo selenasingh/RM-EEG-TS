@@ -343,7 +343,7 @@ for block = 1:length(Exp_blocks)
     % Save intermittent data in case of crash:
     if ~test_run
         files = dir(strcat('composite_task_',subject_name,'_block_',num2str(block),'*.mat'));
-        save([strcat('composite_task_',subject_name,'_block_',num2str(block)),num2str(length(files)+1)],'cfg','EEG','class_MARKERS','class_MARKERS_idx','EEG_MARKERS','buffer_INDEX','question_RESP','Exp_blocks','block')
+        save([strcat('composite_task_',subject_name,'_block_',num2str(block),num2str(length(files)+1))],'cfg','EEG','class_MARKERS','class_MARKERS_idx','EEG_MARKERS','buffer_INDEX','question_RESP','Exp_blocks','block')
     end %end if
     
 end %end for loop for experiment block
@@ -353,7 +353,7 @@ sca;
 %%%%%%%%%%%%%%%%% Save the entire dataset: %%%%%%%%%%%%%%%%%%%%%
 if ~test_run
     save(strcat('composite_task_',subject_name,'_full_dataset'),'cfg','EEG','class_MARKERS','class_MARKERS_idx','EEG_MARKERS','buffer_INDEX','question_RESP','Exp_blocks','block')
-    save(['End_Workspace_' subject_name])
+    save([strcat('End_Workspace_' ,subject_name)])
 end
 
 % Save the entire dataset:

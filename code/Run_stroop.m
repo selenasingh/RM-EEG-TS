@@ -1,9 +1,10 @@
 %%% STROOP TASK %%%%
 % Adopted from Scarfe Lab
-
+% TODO: change so screen set up is same as for saurabh's study
 
 % Setup PTB with some default values
 PsychDefaultSetup(2);
+%Screen('Preference', 'SkipSyncTests');
 
 % Seed the random number generator. Here we use the an older way to be
 % compatible with older systems. Newer syntax would be rng('shuffle'). Look
@@ -12,7 +13,9 @@ rand('seed', sum(100 * clock));
 
 % Set the screen number to the external secondary monitor if there is one
 % connected
-screenNumber = max(Screen('Screens'));
+mons=size(get(0, 'MonitorPositions'));
+screenNumber = mons(1)-1;
+sca
 
 % Define black, white and grey
 white = WhiteIndex(screenNumber);
