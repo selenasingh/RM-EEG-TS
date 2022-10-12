@@ -10,6 +10,7 @@
 %%% - Biosemi data saving directly from MATLAB
 %%% - unify "Run_composite_test" with "Run_composite_test_triggers", add
 %%%     EEG trigger saving to trials
+%%% - add beeps to indicate end of resting state, and end of experiment.
 
 %%%%%%%------------------------------
 sca; %close psychtoolbox windows
@@ -30,6 +31,7 @@ subject_name = join([string(pid) '_' char(session)], '');
 
 % data saving, current participant's path
 data_path = fullfile(proj_path, 'data', num2str(pid));
+mkdir(data_path)
 
 %%%%%%%%%%%%%%%%%%% Experiment Initialization %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 experiment_params % load experiment params 
@@ -205,7 +207,7 @@ Screen('Preference', 'SkipSyncTests', 1);
 %%%%%%%%%%% ----- Resting State Acquisition:
 
 if resting_state
-    Resting_task_instruction = 'Please sit back, relax, close your eyes and \n \n do not think of anything in particular \n';
+    Resting_task_instruction = 'Please sit back, relax, close your eyes and \n \n do not think of anything in particular. \n \n Open your eyes when you hear 4 beeps.';
     DrawFormattedText(wPtr, Resting_task_instruction, 'center', 'center', white);
     Screen('Flip', wPtr);
     [~, resttrigTimestart] = IOPort('Write', portHandle, uint8(18)); 
@@ -219,10 +221,13 @@ if resting_state
 
     % Resting task instruction done:
     [~, resttrigTimeend] = IOPort('Write', portHandle, uint8(28));
-    Resting_task_instruction = 'Resting state completed. Please wait for task section to begin.';
+    Resting_task_instruction = 'Resting state completed. Please wait 10 seconds for task section to begin.';
     DrawFormattedText(wPtr, Resting_task_instruction, 'center', 'center', white);
     Screen('Flip', wPtr);
-    WaitSecs(20); Screen('Flip', wPtr);
+    for tone=300:100:600
+        Beeper(tone, 0.5, 0.3) % will need to test at HTRL
+    end
+    WaitSecs(10); Screen('Flip', wPtr);
 end
 
 %%%%%%%%%%% ----- Experiment loop:
@@ -418,6 +423,9 @@ if ~test_run
     save(strcat(data_path, '\', 'composite_task_',subject_name,'_full_dataset'),'cfg','EEG','class_MARKERS','class_MARKERS_idx','EEG_MARKERS','buffer_INDEX','question_RESP','Exp_blocks','block',...
         'triggerTimes','triggers','screenflipText','screenflipTimes','question_responses_RAW','question_responses_RAWTIMES');
     save([strcat(data_path, '\','End_Workspace_', subject_name)])
+    for tone=1:4
+      Beeper('med', 0.5, 0.5) %Beeps to indicate end of experiment
+    end
 end
 
 sca;
