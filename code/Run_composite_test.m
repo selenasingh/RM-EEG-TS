@@ -3,12 +3,13 @@
 %%% original: Saurabh Shaw, 2020
 %%% current: Selena Singh, 2022
 
-%%% Changes made (SS): 
+%%% Changes made (Singh): 
 %%% - Re-organize so initialization occurs in sep. file
 %%% - Add Stroop task, Cued Rumination Trials
-%%% - Time gaps for experimenters
 %%% - File organization for participant data 
 %%% - Biosemi data saving directly from MATLAB
+%%% - unify "Run_composite_test" with "Run_composite_test_triggers", add
+%%%     EEG trigger saving to trails
 
 %%%%%%%------------------------------
 sca; %close psychtoolbox windows
@@ -81,6 +82,7 @@ if ~test_run
     
     % get access to fieldtrip 
     addpath(genpath('E:\Saurabh_files\Research_code\Toolboxes\FieldTrip'));
+    rmpath(genpath('E:\Saurabh_files\Research_code\Toolboxes\Fieldtrip\compat'));
     
     % start recording EEG
     biosemi2ftPath = fullfile('E:', 'Saurabh_files', 'Research_code', 'Toolboxes', 'Fieldtrip', 'realtime', 'bin', 'win32');
@@ -139,6 +141,12 @@ if ~test_run
         prevSample = 0;
     end
     count = 0;
+
+    % Setup COM port for writing triggers to Biosemi interface:
+    triggerCOMport = 'COM4';
+    [portHandle, errMsg] = IOPort('OpenSerialPort', triggerCOMport, 'BaudRate=115200');
+    if ~isempty(errMsg) input('Something went wrong:', 's'); end
+
 end
 
 %%%%%%%%%%%%%%%%% Display Setup, using PsychToolBox %%%%%%%%%%%%%%%%%%%%%
@@ -197,17 +205,21 @@ if resting_state
     Resting_task_instruction = 'Please sit back, relax, close your eyes and \n \n do not think of anything in particular \n';
     DrawFormattedText(wPtr, Resting_task_instruction, 'center', 'center', white);
     Screen('Flip', wPtr);
+    [~, resttrigTimestart] = IOPort('Write', portHandle, uint8(18)); 
     WaitSecs(resting_time); Screen('Flip', wPtr);
     
     % Get EEG data (& online processing): 
     if ~test_run
         [resting_buffer_INDEX,resting_EEG_MARKERS,resting_EEG,prevSample] = get_EEG_data(cfg,blocksize_resting_time,1,chanindx,[],[],[]);
-         
-        % TODO : ask Saurabh what's going on with the pseudocode bit here
-        %pseudocode
-       
         save(strcat('resting_EEG_',subject_name),'cfg','resting_EEG','resting_EEG_MARKERS','resting_buffer_INDEX');        
-    end    
+    end   
+
+    % Resting task instruction done:
+    [~, resttrigTimeend] = IOPort('Write', portHandle, uint8(28));
+    Resting_task_instruction = 'Resting state completed. Please wait for task section to begin.';
+    DrawFormattedText(wPtr, Resting_task_instruction, 'center', 'center', white);
+    Screen('Flip', wPtr);
+    WaitSecs(20); Screen('Flip', wPtr);
 end
 
 %%%%%%%%%%% ----- Experiment loop:
@@ -219,6 +231,12 @@ class_MARKERS_idx = cell(1,length(Exp_blocks));
 EEG_MARKERS = cell(1,length(Exp_blocks));
 buffer_INDEX = cell(1,length(Exp_blocks));
 question_RESP = cell(1,length(Exp_blocks));
+triggers = cell(1,length(Exp_blocks));
+triggerTimes = cell(1,length(Exp_blocks));
+screenflipTimes = cell(1,length(Exp_blocks));
+screenflipText = cell(1,length(Exp_blocks));
+question_responses_RAW = cell(1,length(Exp_blocks));
+question_responses_RAWTIMES = cell(1,length(Exp_blocks));
 prevSample = 1;
 
 for block = 1:length(Exp_blocks)
@@ -241,25 +259,39 @@ for block = 1:length(Exp_blocks)
                 WaitSecs(floor(interBlock_time/2));
                 
                 DrawFormattedText(wPtr,'Autobiographical Memory', 'center', 'center', white);
-                Screen('Flip', wPtr);
-                WaitSecs(floor(interBlock_time/2)); Screen('Flip', wPtr); 
+                [~,screenFlip_time] = Screen('Flip', wPtr); 
+                screenflipTimes{block} = [screenflipTimes{block} screenFlip_time];
                 class = 1; % interblock time (Class 1)
+                [~, trigTimes] = IOPort('Write', portHandle, uint8(class)); 
+                triggerTimes{block} = [triggerTimes{block} trigTimes]; 
+                triggers{block} = [triggers{block} uint8(class)]; 
+                WaitSecs(floor(interBlock_time/2)); Screen('Flip', wPtr); 
+                
                 
             case 'symbol'                
                 % Draw white fixation cross
                 Screen('drawLine', wPtr, [0,0,0], x0-fixSize, y0, x0+fixSize, y0, fixThick);
                 Screen('drawLine', wPtr, [0,0,0], x0, y0-fixSize, x0, y0+fixSize, fixThick);
-                Screen('Flip', wPtr);
-                WaitSecs(interBlock_time); Screen('Flip', wPtr); 
-                class = 1; % interblock time (Class 1)                
+                [~,screenFlip_time] = Screen('Flip', wPtr); 
+                screenflipTimes{block} = [screenflipTimes{block} screenFlip_time];
+                class = 1; % interblock time (Class 1)
+                [~, trigTimes] = IOPort('Write', portHandle, uint8(class)); 
+                triggerTimes{block} = [triggerTimes{block} trigTimes]; 
+                triggers{block} = [triggers{block} uint8(class)]; 
+                WaitSecs(interBlock_time); 
+                Screen('Flip', wPtr); 
+                class = 1; % interblock time (Class 1)             
         end %end switch
         
         % Populate the class_MARK vector for interblock segment:
         if ~test_run [class_MARK,class_MARK_idx] = get_class_Markers(cfg,blocksize_interBlock_time,prevSample,class, block, class_MARK, class_MARK_idx); 
         end %end if
-        
-        class = 2;
+        class = 2; 
+        [~, trigTimes] = IOPort('Write', portHandle, uint8(class)); 
+        triggerTimes{block} = [triggerTimes{block} trigTimes]; 
+        triggers{block} = [triggers{block} uint8(class)]; 
         Run_AM
+        triggerTimes{block} = [triggerTimes{block} ampTrigger_timestamp];
         
     elseif Exp_blocks(block) == 0     % It is a WM trial (Class 3)
         
@@ -272,27 +304,38 @@ for block = 1:length(Exp_blocks)
                 Screen('Flip', wPtr);
                 WaitSecs(floor(interBlock_time/2));
                 
-                DrawFormattedText(wPtr, 'Word Memory', 'center', 'center', white);
-                Screen('Flip', wPtr);
-                WaitSecs(floor(interBlock_time/2)); Screen('Flip', wPtr); 
+                DrawFormattedText(wPtr, 'Word Memory', 'center', 'center', white); 
+                screenflipText{block} = [screenflipText{block} {'Word Memory'}];
+                [~,screenFlip_time] = Screen('Flip', wPtr); 
+                screenflipTimes{block} = [screenflipTimes{block} screenFlip_time];
                 class = 1; % interblock time (Class 1)
+                [~, trigTimes] = IOPort('Write', portHandle, uint8(class)); 
+                triggerTimes{block} = [triggerTimes{block} trigTimes]; 
+                triggers{block} = [triggers{block} uint8(class)]; 
+                WaitSecs(floor(interBlock_time/2)); 
+                Screen('Flip', wPtr);
                 
             case 'symbol'                
                 % Draw white circle
                 Screen('FillOval', wPtr,[0,0,0]);
-                Screen('Flip', wPtr);
-                WaitSecs(interBlock_time); Screen('Flip', wPtr); 
-                
+                [~,screenFlip_time] = Screen('Flip', wPtr); 
+                screenflipTimes{block} = [screenflipTimes{block} screenFlip_time];
+                WaitSecs(interBlock_time); 
+                Screen('Flip', wPtr); 
                 class = 1; % interblock time (Class 1)
+                
         end %end switch
         
         % Populate the class_MARK vector for interblock segment:
         if ~test_run 
             [class_MARK,class_MARK_idx] = get_class_Markers(cfg,blocksize_interBlock_time,prevSample,class, block, class_MARK, class_MARK_idx); 
         end %end if
-        
-        class = 3;
+        class = 3; 
+        [~, trigTimes] = IOPort('Write', portHandle, uint8(class)); 
+        triggerTimes{block} = [triggerTimes{block} trigTimes]; 
+        triggers{block} = [triggers{block} uint8(class)];       
         Run_WM
+        triggerTimes{block} = [triggerTimes{block} ampTrigger_timestamp];
 
     elseif Exp_blocks(block) == 2 % cued rumination trial 
         switch iti_stim
@@ -304,26 +347,40 @@ for block = 1:length(Exp_blocks)
                 WaitSecs(floor(interBlock_time/2));
                 
                 DrawFormattedText(wPtr,'Rumination', 'center', 'center', white);
-                Screen('Flip', wPtr);
-                WaitSecs(floor(interBlock_time/2)); Screen('Flip', wPtr); 
+                [~,screenFlip_time] = Screen('Flip', wPtr); 
+                screenflipTimes{block} = [screenflipTimes{block} screenFlip_time];
                 class = 1; % interblock time (Class 1)
+                [~, trigTimes] = IOPort('Write', portHandle, uint8(class)); 
+                triggerTimes{block} = [triggerTimes{block} trigTimes]; 
+                triggers{block} = [triggers{block} uint8(class)]; 
+                WaitSecs(floor(interBlock_time/2)); 
+                Screen('Flip', wPtr); 
                 
             case 'symbol'                
                 % Draw white fixation cross
                 Screen('drawLine', wPtr, [0,0,0], x0-fixSize, y0, x0+fixSize, y0, fixThick);
                 Screen('drawLine', wPtr, [0,0,0], x0, y0-fixSize, x0, y0+fixSize, fixThick);
-                Screen('Flip', wPtr);
-                WaitSecs(interBlock_time); Screen('Flip', wPtr); 
-                class = 1; % interblock time (Class 1)                
+                [~,screenFlip_time] = Screen('Flip', wPtr); 
+                screenflipTimes{block} = [screenflipTimes{block} screenFlip_time];
+                class = 1; % interblock time (Class 1)
+                [~, trigTimes] = IOPort('Write', portHandle, uint8(class)); 
+                triggerTimes{block} = [triggerTimes{block} trigTimes]; 
+                triggers{block} = [triggers{block} uint8(class)]; 
+                WaitSecs(interBlock_time); 
+                Screen('Flip', wPtr); 
+                class = 1; % interblock time (Class 1)                  
        
         end %end switch
         % Populate the class_MARK vector for interblock segment:
         if ~test_run 
             [class_MARK,class_MARK_idx] = get_class_Markers(cfg,blocksize_interBlock_time,prevSample,class, block, class_MARK, class_MARK_idx); 
         end %end if
-        
         class = 4;
+        [~, trigTimes] = IOPort('Write', portHandle, uint8(class)); 
+        triggerTimes{block} = [triggerTimes{block} trigTimes]; 
+        triggers{block} = [triggers{block} uint8(class)]; 
         Run_CR
+        triggerTimes{block} = [triggerTimes{block} ampTrigger_timestamp];
 
         
     end %end outer if (if, elseif, else)
@@ -337,13 +394,16 @@ for block = 1:length(Exp_blocks)
     end %end if
 
     question_RESP{block} = question_responses;
+    question_responses_RAW{block} = question_responses_raw;
+    question_responses_RAWTIMES{block} = question_responses_rawtimes;
     class_MARKERS{block} = class_MARK;
     class_MARKERS_idx{block} = class_MARK_idx;
     
     % Save intermittent data in case of crash:
     if ~test_run
         files = dir(strcat('composite_task_',subject_name,'_block_',num2str(block),'*.mat'));
-        save([strcat('composite_task_',subject_name,'_block_',num2str(block),num2str(length(files)+1))],'cfg','EEG','class_MARKERS','class_MARKERS_idx','EEG_MARKERS','buffer_INDEX','question_RESP','Exp_blocks','block')
+        save([strcat('composite_task_',subject_name,'_block_',num2str(block)),num2str(length(files)+1)],'cfg','EEG','class_MARKERS','class_MARKERS_idx','EEG_MARKERS','buffer_INDEX','question_RESP','Exp_blocks','block',...
+            'triggerTimes','triggers','screenflipText','screenflipTimes','question_responses_RAW','question_responses_RAWTIMES');
     end %end if
     
 end %end for loop for experiment block
@@ -352,14 +412,13 @@ sca;
 
 %%%%%%%%%%%%%%%%% Save the entire dataset: %%%%%%%%%%%%%%%%%%%%%
 if ~test_run
-    save(strcat('composite_task_',subject_name,'_full_dataset'),'cfg','EEG','class_MARKERS','class_MARKERS_idx','EEG_MARKERS','buffer_INDEX','question_RESP','Exp_blocks','block')
-    save([strcat('End_Workspace_' ,subject_name)])
+    save(strcat('composite_task_',subject_name,'_full_dataset'),'cfg','EEG','class_MARKERS','class_MARKERS_idx','EEG_MARKERS','buffer_INDEX','question_RESP','Exp_blocks','block',...
+        'triggerTimes','triggers','screenflipText','screenflipTimes','question_responses_RAW','question_responses_RAWTIMES');
+    save(['End_Workspace_' subject_name])
 end
 
-% Save the entire dataset:
-% save(strcat('pretrain_',subject_name),'EEG','class_MARKERS','EEG_MARKERS','start_INDEX','scan');
-% files = dir('testsaurabh*.mat');
-% save(['testsaurabh',num2str(length(files)+1)])
+sca;
+IOPort('Close', portHandle);
 
 %%%%%%%%%%%%%%%% Concluding experiment %%%%%%%%%%%%%%%%%%%%
 if ~test_run

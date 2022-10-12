@@ -3,8 +3,8 @@
 % TODO: change so screen set up is same as for saurabh's study
 
 % Setup PTB with some default values
-PsychDefaultSetup(2);
-%Screen('Preference', 'SkipSyncTests');
+Screen('Preference', 'SkipSyncTests'); 
+PsychDefaultSetup(2); % will need to test this @ htrl 
 
 % Seed the random number generator. Here we use the an older way to be
 % compatible with older systems. Newer syntax would be rng('shuffle'). Look
@@ -41,7 +41,7 @@ topPriorityLevel = MaxPriority(window);
 [xCenter, yCenter] = RectCenter(windowRect);
 
 % Set the blend funciton for the screen
-Screen('BlendFunction', window, 'GL_SRC_ALPHA', 'GL_ONE_MINUS_SRC_ALPHA');
+%jScreen('BlendFunction', window, 'GL_SRC_ALPHA', 'GL_ONE_MINUS_SRC_ALPHA');
 
 
 %----------------------------------------------------------------------

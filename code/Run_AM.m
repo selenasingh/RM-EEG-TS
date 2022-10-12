@@ -1,10 +1,16 @@
 %%%%% Autobiographical Memory Trials %%%%%
 %%%---File history:
 %%% original: Saurabh Shaw, 2020
+%%% current: Selena Singh, 2022
+%%%
+%%%---changes made (Singh) 
+%%% - unified 'Run_AM with 'Run_AM_triggers', save EEG triggers for trials 
+%%%%%%%------------------------------
 
 %%%%%%%------------------------------
 % Picking keywords from the same memory for this block:
-num_unique_memories = max(AM_memory_number); rand_vect = randperm(num_unique_memories);
+num_unique_memories = max(AM_memory_number); 
+rand_vect = randperm(num_unique_memories);
 current_mem = rand_vect(1); % Pick a memory for this block
 AM_words_idx = AM_memory_number == current_mem;
 AM_words_selected = AM_words(AM_words_idx);
@@ -32,6 +38,8 @@ AM_trial_word_list = AM_trial_word_list_total(1:nTrials);
 
 question_trials = randi(nTrials,[1,num_questions]);
 question_responses = zeros(1,num_questions);
+question_responses_raw = zeros(1,num_questions);
+question_responses_rawtimes = cell(1,num_questions);
 num_questions_asked = 0;
 
 %% Display Instructions for AM task:
@@ -42,17 +50,26 @@ if test_run
     WaitSecs(instructions_time); Screen('Flip', wPtr);
 end
 
+ampTrigger_timestamp = zeros(1,nTrials);
+screenFlip_timestamp = zeros(1,nTrials);
+
 % Display the AM words:
 for tr = 1:nTrials
     
     curr_trial_word = AM_trial_word_list{1,tr};
-    DrawFormattedText(wPtr, curr_trial_word, 'center', 'center', white);
-    Screen('Flip', wPtr);
+    DrawFormattedText(wPtr, curr_trial_word, 'center', 'center', white); 
+    screenflipText{block}= [screenflipText{block} {curr_trial_word}];
+    [~,screenFlip_timestamp(tr)] = Screen('Flip', wPtr); 
+    screenflipTimes{block} = [screenflipTimes{block} screenFlip_timestamp(tr)];
+    [~, ampTrigger_timestamp(tr)] = IOPort('Write', portHandle, uint8(class+tr*10)); 
+    triggers{block} = [triggers{block} uint8(class+tr*10)];
     WaitSecs(Trial_duration);
     Screen('Flip', wPtr);
     
      % Populate the class_MARK vector:
-    if ~test_run [class_MARK,class_MARK_idx] = get_class_Markers(cfg,blocksize_Trial_duration,prevSample,class, tr, class_MARK, class_MARK_idx); end
+    if ~test_run 
+        [class_MARK,class_MARK_idx] = get_class_Markers(cfg,blocksize_Trial_duration,prevSample,class, tr, class_MARK, class_MARK_idx); 
+    end
         
     % Ask memory question:
     if ismember(tr,question_trials)
@@ -70,16 +87,22 @@ for tr = 1:nTrials
         
         % Get Character input:
         FlushEvents('GetChar');
-        DrawFormattedText(wPtr, question_text, 'center', 'center', white);
-        Screen('Flip', wPtr);
-        [ch] = GetChar();
+        DrawFormattedText(wPtr, question_text, 'center', 'center', white); screenflipText{block}= [screenflipText{block} {question_text}];
+        [~,screenFlip_time_temp] = Screen('Flip', wPtr); screenflipTimes{block} = [screenflipTimes{block} screenFlip_time_temp];
+        [~, ampTrigger_timestamp(tr)] = IOPort('Write', portHandle, uint8(num_questions_asked*10+9)); triggers{block} = [triggers{block} uint8(num_questions_asked*10+9)];
+        [ch,when] = GetChar(); 
+        [~, ampTrigger_timestamp(tr)] = IOPort('Write', portHandle, uint8(str2num(ch))); triggers{block} = [triggers{block} uint8(str2num(ch))];
         KbWait;
         Screen('Flip', wPtr);
         
         % Check if response is correct:
         if find(curr_perm == 4) == str2num(ch)
             question_responses(num_questions_asked) = 1;
-        end            
+        end 
+        
+        % Save raw responses and timing:
+        question_responses_raw(num_questions_asked) = str2num(ch); 
+        question_responses_rawtimes{num_questions_asked} = when;
         
     end
        
