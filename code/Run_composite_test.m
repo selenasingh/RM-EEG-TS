@@ -9,7 +9,7 @@
 %%% - File organization for participant data 
 %%% - Biosemi data saving directly from MATLAB
 %%% - unify "Run_composite_test" with "Run_composite_test_triggers", add
-%%%     EEG trigger saving to trails
+%%%     EEG trigger saving to trials
 
 %%%%%%%------------------------------
 sca; %close psychtoolbox windows
@@ -27,6 +27,9 @@ pt = readtable(fullfile(proj_path, 'participants.xlsx'));
 pid = pt.id(end); %extract participant ID
 session = pt.session(end); %pre or post intervention, or single, session. 
 subject_name = join([string(pid) '_' char(session)], '');
+
+% data saving, current participant's path
+data_path = fullfile(proj_path, 'data', num2str(pid));
 
 %%%%%%%%%%%%%%%%%%% Experiment Initialization %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 experiment_params % load experiment params 
@@ -78,7 +81,7 @@ Run_stroop
 if ~test_run
 
     % data saving, current participant's path 
-    data_path = fullfile(proj_path, 'data', sprintf('%d', pid), 'eeg'); % change so aligns with saurabh's requirements
+    data_path_eeg = fullfile(proj_path, 'data', sprintf('%d', pid), 'eeg'); % change so aligns with saurabh's requirements
     
     % get access to fieldtrip 
     addpath(genpath('E:\Saurabh_files\Research_code\Toolboxes\FieldTrip'));
@@ -89,7 +92,7 @@ if ~test_run
     
     % turning biosemi on, start saving data
     system('start powershell')
-    cmd = {'cd %s; .\\biosemi2ft biosemi_config.txt %s -', biosemi2ftPath, data_path};
+    cmd = {'cd %s; .\\biosemi2ft biosemi_config.txt %s -', biosemi2ftPath, data_path_eeg};
     clipboard('copy', sprintf(cmd{:}));
     fprintf('\n\nCopy and paste the following command into the powershell window that just opened:\n');
     fprintf('(Alternatively, just paste using ctrl + V because the command has already been copied to your clipboard \n\n');
@@ -402,7 +405,7 @@ for block = 1:length(Exp_blocks)
     % Save intermittent data in case of crash:
     if ~test_run
         files = dir(strcat('composite_task_',subject_name,'_block_',num2str(block),'*.mat'));
-        save([strcat('composite_task_',subject_name,'_block_',num2str(block)),num2str(length(files)+1)],'cfg','EEG','class_MARKERS','class_MARKERS_idx','EEG_MARKERS','buffer_INDEX','question_RESP','Exp_blocks','block',...
+        save([strcat(data_path, '\', 'composite_task_',subject_name,'_block_',num2str(block),num2str(length(files)+1))],'cfg','EEG','class_MARKERS','class_MARKERS_idx','EEG_MARKERS','buffer_INDEX','question_RESP','Exp_blocks','block',...
             'triggerTimes','triggers','screenflipText','screenflipTimes','question_responses_RAW','question_responses_RAWTIMES');
     end %end if
     
@@ -412,9 +415,9 @@ sca;
 
 %%%%%%%%%%%%%%%%% Save the entire dataset: %%%%%%%%%%%%%%%%%%%%%
 if ~test_run
-    save(strcat('composite_task_',subject_name,'_full_dataset'),'cfg','EEG','class_MARKERS','class_MARKERS_idx','EEG_MARKERS','buffer_INDEX','question_RESP','Exp_blocks','block',...
+    save(strcat(data_path, '\', 'composite_task_',subject_name,'_full_dataset'),'cfg','EEG','class_MARKERS','class_MARKERS_idx','EEG_MARKERS','buffer_INDEX','question_RESP','Exp_blocks','block',...
         'triggerTimes','triggers','screenflipText','screenflipTimes','question_responses_RAW','question_responses_RAWTIMES');
-    save(['End_Workspace_' subject_name])
+    save([strcat(data_path, '\','End_Workspace_', subject_name)])
 end
 
 sca;

@@ -196,7 +196,7 @@ for trial = 1:numTrials
 end
 
 filename = join(['Stroop' subject_name '.csv'],'');
-writematrix(respMat, fullfile(proj_path, 'data', filename));
+csvwrite(strcat(data_path, '\', filename), respMat); % compatible with MATLAB R2018a
 % End of experiment screen. We clear the screen once they have made their
 % response
 DrawFormattedText(window, 'Experiment Finished \n\n Press Any Key To Exit',...
